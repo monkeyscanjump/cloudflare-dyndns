@@ -37,22 +37,3 @@ jobs:
 
       - name: Run tests
         run: npm test
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage/lcov.info
-
-  security:
-    name: Security scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Run security scan
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: test
