@@ -21,11 +21,19 @@ export interface IConfig {
 }
 
 /**
+ * Response data structure from IP detection services
+ */
+export interface IpResponseData {
+  ip?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Service response for IP detection
  */
 export interface IpServiceResponse {
   url: string;
-  parser: (data: any) => string;
+  parser: (data: IpResponseData | string) => string;
 }
 
 /**
@@ -44,15 +52,38 @@ export interface CloudflareDnsData {
   content: string;
   ttl: number;
   proxied: boolean;
+  [key: string]: unknown;
+}
+
+/**
+ * Cloudflare API request configuration
+ */
+export interface CloudflareApiRequestConfig {
+  method: string;
+  url: string;
+  data?: Record<string, unknown>;
+  timeout?: number;
+  headers?: Record<string, string>;
 }
 
 /**
  * Cloudflare API response structure
  */
-export interface CloudflareApiResponse {
+export interface CloudflareApiResponse<T = Record<string, unknown>> {
+  success: boolean;
+  errors?: CloudflareApiError[];
+  result?: T;
+  messages?: string[];
+}
+
+/**
+ * Cloudflare API error response
+ */
+export interface CloudflareErrorResponse {
   success: boolean;
   errors: CloudflareApiError[];
-  result?: any;
+  messages?: string[];
+  result?: null;
 }
 
 /**
@@ -61,21 +92,43 @@ export interface CloudflareApiResponse {
 export interface CloudflareApiError {
   code: number;
   message: string;
+  error_chain?: CloudflareApiError[];
+}
+
+/**
+ * Cloudflare DNS record
+ */
+export interface CloudflareDnsRecord {
+  id: string;
+  type: string;
+  name: string;
+  content: string;
+  ttl: number;
+  proxied: boolean;
+  zone_id: string;
+  zone_name?: string;
+  created_on?: string;
+  modified_on?: string;
+  locked?: boolean;
+}
+
+/**
+ * Cloudflare Zone information
+ */
+export interface CloudflareZone {
+  id: string;
+  name: string;
+  status: string;
+  paused: boolean;
+  type: string;
+  development_mode: number;
+  name_servers: string[];
 }
 
 /**
  * Log levels for the logger
  */
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
-
-/**
- * IP service configuration
- */
-export interface IpServiceConfig {
-  name: string;
-  url: string;
-  parser: (data: any) => string;
-}
 
 /**
  * Command line arguments interface
@@ -103,7 +156,7 @@ export interface CloudflareApiConfigType {
     updateRecord: (zoneId: string, recordId: string) => string;
     alternativeEndpoints: {
       [key: string]: {
-        [version: string]: ((...args: any[]) => string);
+        [version: string]: ((...args: string[]) => string);
       }
     }
   };
@@ -112,9 +165,34 @@ export interface CloudflareApiConfigType {
   };
   responseHandlers: {
     [version: string]: {
-      isSuccess: (response: any) => boolean;
-      extractErrors: (response: any) => any[];
-      extractResult: (response: any) => any;
+      isSuccess: (response: CloudflareApiResponse) => boolean;
+      extractErrors: (response: CloudflareErrorResponse) => CloudflareApiError[];
+      extractResult: <T>(response: CloudflareApiResponse<T>) => T | null;
     }
   };
+}
+
+/**
+ * Axios related types
+ */
+export interface AxiosError extends Error {
+  response?: {
+    status: number;
+    data: CloudflareErrorResponse;
+    headers?: Record<string, string>;
+  };
+  message: string;
+  isAxiosError?: boolean;
+}
+
+/**
+ * Type guard for AxiosError
+ */
+export function isAxiosError(error: unknown): error is AxiosError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'isAxiosError' in error &&
+    Boolean(error.isAxiosError)
+  );
 }

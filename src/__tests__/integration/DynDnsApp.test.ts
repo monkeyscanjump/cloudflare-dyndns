@@ -2,7 +2,6 @@ import { DynDnsApp } from '../../app/DynDnsApp';
 import { CloudflareService } from '../../services/CloudflareService';
 import { IpDetectionService } from '../../services/IpDetectionService';
 import { IpFileManager } from '../../utils/IpFileManager';
-import { Logger } from '../../utils/Logger';
 
 // Simple mocks
 jest.mock('../../services/CloudflareService');

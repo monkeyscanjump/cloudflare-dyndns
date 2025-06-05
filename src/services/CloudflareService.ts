@@ -1,5 +1,12 @@
 import axios, { AxiosRequestConfig } from 'axios';
-import { IConfig, CloudflareDnsData, CloudflareApiResponse } from '../types';
+import {
+  IConfig,
+  CloudflareDnsData,
+  CloudflareApiResponse,
+  CloudflareDnsRecord,
+  CloudflareZone,
+  isAxiosError
+} from '../types';
 import { Logger } from '../utils/Logger';
 import { CloudflareApiConfig } from '../config/ApiConfig';
 import { IpDetectionService } from './IpDetectionService';
@@ -34,7 +41,7 @@ export class CloudflareService {
    * Gets authorization headers for API requests
    * @returns Headers object with authorization
    */
-  private getHeaders() {
+  private getHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.config.API_TOKEN.trim()}`
@@ -60,8 +67,8 @@ export class CloudflareService {
   private async makeApiRequest<T>(
     endpoint: string,
     method: 'get' | 'post' | 'put' | 'delete' = 'get',
-    data?: any
-  ): Promise<T> {
+    data?: Record<string, unknown>
+  ): Promise<CloudflareApiResponse<T>> {
     const primaryUrl = this.getApiUrl(endpoint);
 
     try {
@@ -79,13 +86,37 @@ export class CloudflareService {
     } catch (error) {
       this.logger.debug(`API request failed for URL: ${primaryUrl}`);
 
-      if ((error as any).response?.status === 404) {
+      if (isAxiosError(error) && error.response?.status === 404) {
         this.logger.warn(`Endpoint ${endpoint} returned 404, attempting to detect API changes`);
-        return this.handleApiChange(endpoint, method, data, error as Error);
+        return this.handleApiChange(endpoint, method, data, error);
       }
 
       throw error;
     }
+  }
+
+  /**
+   * Safely gets result array from API response
+   * @param response API response that might have undefined result
+   * @returns Guaranteed array (empty if result was undefined)
+   */
+  private safeGetResultArray<T>(response: CloudflareApiResponse<T[]>): T[] {
+    if (!response.success || !response.result) {
+      return [];
+    }
+    return response.result;
+  }
+
+  /**
+   * Safely gets single result from API response
+   * @param response API response that might have undefined result
+   * @returns Result or null if undefined
+   */
+  private safeGetResult<T>(response: CloudflareApiResponse<T>): T | null {
+    if (!response.success || !response.result) {
+      return null;
+    }
+    return response.result;
   }
 
   /**
@@ -99,9 +130,9 @@ export class CloudflareService {
   private async handleApiChange<T>(
     endpoint: string,
     method: 'get' | 'post' | 'put' | 'delete',
-    data?: any,
+    data?: Record<string, unknown>,
     originalError?: Error
-  ): Promise<T> {
+  ): Promise<CloudflareApiResponse<T>> {
     // Try alternative API versions
     if (endpoint.includes('/zones') || endpoint.includes('/dns_records')) {
       const alternativeVersions = ['v5', 'v4', 'v3'].filter(v => v !== this.apiVersion);
@@ -321,19 +352,20 @@ export class CloudflareService {
   private async lookupZoneId(): Promise<string | null> {
     try {
       const endpoint = CloudflareApiConfig.endpoints.listZones + '?per_page=50';
-      const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
+      const response = await this.makeApiRequest<CloudflareZone[]>(endpoint);
+      const zones = this.safeGetResultArray(response);
 
-      if (response.success && response.result?.length > 0) {
+      if (zones.length > 0) {
         // Single zone case
-        if (response.result.length === 1) {
-          const zone = response.result[0];
+        if (zones.length === 1) {
+          const zone = zones[0];
           this.logger.info(`Found single zone: ${zone.name} (${zone.id})`);
           return zone.id;
         }
 
         // Try to match by domain name
         if (this.config.DOMAIN) {
-          const matchingZone = response.result.find((zone: any) =>
+          const matchingZone = zones.find((zone: CloudflareZone) =>
             zone.name.toLowerCase() === this.config.DOMAIN.toLowerCase()
           );
 
@@ -346,7 +378,7 @@ export class CloudflareService {
         // Show available zones
         this.logger.warn('Multiple zones found for this API token. Please specify ZONE_ID in configuration.');
         this.logger.info('Available zones:');
-        response.result.forEach((zone: any, index: number) => {
+        zones.forEach((zone: CloudflareZone, index: number) => {
           this.logger.info(`${index + 1}. ${zone.name} (ID: ${zone.id})`);
         });
 
@@ -355,8 +387,8 @@ export class CloudflareService {
           this.logger.warn(`Could not find exact match for ${this.config.DOMAIN}. Manual configuration required.`);
           return null;
         } else {
-          this.logger.warn(`Using first zone by default: ${response.result[0].name} (${response.result[0].id})`);
-          return response.result[0].id;
+          this.logger.warn(`Using first zone by default: ${zones[0].name} (${zones[0].id})`);
+          return zones[0].id;
         }
       } else {
         this.logger.error('No zones found for this API token. Please verify your token has the correct permissions.');
@@ -365,8 +397,8 @@ export class CloudflareService {
       return null;
     } catch (error) {
       this.logger.error(`Failed to lookup zones: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return null;
     }
@@ -389,18 +421,19 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID) + `?type=A&name=${this.config.FQDN}`;
-      const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
+      const response = await this.makeApiRequest<CloudflareDnsRecord[]>(endpoint);
+      const records = this.safeGetResultArray(response);
 
-      if (response.success && response.result?.length > 0) {
-        return response.result[0].id;
+      if (records.length > 0) {
+        return records[0].id;
       } else {
         this.logger.warn(`No DNS A records found for ${this.config.FQDN}`);
         return null;
       }
     } catch (error) {
       this.logger.error(`Failed to lookup record ID: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return null;
     }
@@ -426,17 +459,18 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID) + '?type=A&per_page=100';
-      const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
+      const response = await this.makeApiRequest<CloudflareDnsRecord[]>(endpoint);
+      const records = this.safeGetResultArray(response);
 
-      if (response.success && response.result?.length > 0) {
+      if (records.length > 0) {
         // List all available records
-        this.logger.info(`Found ${response.result.length} A records:`);
-        response.result.forEach((record: any, index: number) => {
+        this.logger.info(`Found ${records.length} A records:`);
+        records.forEach((record: CloudflareDnsRecord, index: number) => {
           this.logger.info(`${index + 1}. ${record.name} (${record.content})`);
         });
 
         // Try to find a subdomain record
-        const subdomain = response.result.find((record: any) => {
+        const subdomain = records.find((record: CloudflareDnsRecord) => {
           const zoneName = record.zone_name || '';
           return record.name !== zoneName && !record.name.includes('*');
         });
@@ -447,10 +481,10 @@ export class CloudflareService {
         }
 
         // First record fallback
-        this.logger.info(`Using first A record: ${response.result[0].name}`);
+        this.logger.info(`Using first A record: ${records[0].name}`);
         return {
-          id: response.result[0].id,
-          name: response.result[0].name
+          id: records[0].id,
+          name: records[0].name
         };
       } else {
         this.logger.warn('No DNS A records found in this zone');
@@ -458,8 +492,8 @@ export class CloudflareService {
       }
     } catch (error) {
       this.logger.error(`Failed to find suitable records: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return null;
     }
@@ -476,17 +510,18 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.getRecord(this.config.ZONE_ID, this.config.RECORD_ID);
-      const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
+      const response = await this.makeApiRequest<CloudflareDnsRecord>(endpoint);
+      const record = this.safeGetResult(response);
 
-      if (response.success && response.result) {
-        return response.result.name;
+      if (record) {
+        return record.name;
       }
 
       return null;
     } catch (error) {
       this.logger.error(`Failed to lookup FQDN from record ID: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return null;
     }
@@ -520,13 +555,14 @@ export class CloudflareService {
       };
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID);
-      const response = await this.makeApiRequest<CloudflareApiResponse>(
+      const response = await this.makeApiRequest<CloudflareDnsRecord>(
         endpoint, 'post', data
       );
+      const record = this.safeGetResult(response);
 
-      if (response.success && response.result) {
+      if (record) {
         this.logger.info(`Successfully created DNS record for ${this.config.FQDN} pointing to ${currentIp}`);
-        return response.result.id;
+        return record.id;
       } else {
         const errors = response.errors?.map(e => e.message).join(', ') || 'Unknown error';
         this.logger.error(`Failed to create DNS record: ${errors}`);
@@ -547,7 +583,7 @@ export class CloudflareService {
       // Try token verify endpoint first
       try {
         const verifyEndpoint = '/user/tokens/verify';
-        const response = await this.makeApiRequest<CloudflareApiResponse>(verifyEndpoint);
+        const response = await this.makeApiRequest<Record<string, unknown>>(verifyEndpoint);
         if (response.success) {
           this.logger.info('Successfully verified Cloudflare API credentials');
           return true;
@@ -558,7 +594,7 @@ export class CloudflareService {
 
       // Fallback to zones endpoint
       const endpoint = CloudflareApiConfig.endpoints.listZones + '?per_page=1';
-      const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
+      const response = await this.makeApiRequest<CloudflareZone[]>(endpoint);
 
       if (response.success === true) {
         this.logger.info('Successfully verified Cloudflare API credentials using zones endpoint');
@@ -569,8 +605,8 @@ export class CloudflareService {
       }
     } catch (error) {
       this.logger.error(`Failed to verify API credentials: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return false;
     }
@@ -599,23 +635,23 @@ export class CloudflareService {
     const endpoint = CloudflareApiConfig.endpoints.updateRecord(this.config.ZONE_ID, this.config.RECORD_ID);
 
     try {
-      const response = await this.retryOperation<CloudflareApiResponse>(() =>
-        this.makeApiRequest<CloudflareApiResponse>(endpoint, 'put', data)
+      const response = await this.retryOperation<CloudflareApiResponse<CloudflareDnsRecord>>(() =>
+        this.makeApiRequest<CloudflareDnsRecord>(endpoint, 'put', data)
       );
 
       if (response.success) {
         this.logger.info(`DNS record for ${this.config.FQDN} successfully updated to ${newIp}`);
         return true;
       } else {
-        const errors = response.errors?.map(err => err.message).join('; ');
+        const errors = response.errors?.map(err => err.message).join('; ') || 'Unknown error';
         this.logger.error(`Failed to update DNS record: ${errors}`);
         this.logger.debug(`Cloudflare API response: ${JSON.stringify(response)}`);
         return false;
       }
     } catch (error) {
       this.logger.error(`API error updating DNS record: ${(error as Error).message}`);
-      if ((error as any).response) {
-        this.logger.debug(`API Response Error: ${JSON.stringify((error as any).response.data)}`);
+      if (isAxiosError(error) && error.response) {
+        this.logger.debug(`API Response Error: ${JSON.stringify(error.response.data)}`);
       }
       return false;
     }
@@ -637,10 +673,10 @@ export class CloudflareService {
       } catch (error) {
         lastError = error as Error;
 
-        if ((error as any).response?.status === 429) {
+        if (isAxiosError(error) && error.response?.status === 429) {
           // Rate limit handling
-          const retryAfter = (error as any).response.headers['retry-after']
-            ? parseInt((error as any).response.headers['retry-after'], 10) * 1000
+          const retryAfter = error.response.headers?.['retry-after']
+            ? parseInt(error.response.headers['retry-after'] as string, 10) * 1000
             : retryDelay;
 
           this.logger.warn(`Rate limit hit. Retrying in ${retryAfter/1000} seconds (Attempt ${attempt}/${maxRetries})`);

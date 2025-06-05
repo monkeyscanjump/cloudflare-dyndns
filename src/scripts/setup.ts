@@ -46,7 +46,7 @@ async function setupConfig(): Promise<void> {
   console.log('This wizard will help you set up the configuration for Cloudflare DynDNS.\n');
 
   const configLocations = findConfigLocations();
-  let existingConfigs = configLocations.filter(loc => fs.existsSync(loc));
+  const existingConfigs = configLocations.filter(loc => fs.existsSync(loc));
   let overwriteChoice = 'new';
 
   if (existingConfigs.length > 0) {

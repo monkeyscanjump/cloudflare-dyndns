@@ -231,7 +231,8 @@ export class DynDnsApp {
     let nextInterval = this.checkInterval;
     let ipChanged = false;
 
-    while (true) {
+    this.isRunning = true;
+    while (this.isRunning) {
       try {
         const result = await this.runOnce();
         ipChanged = !result; // If result is false, likely means IP changed but update failed

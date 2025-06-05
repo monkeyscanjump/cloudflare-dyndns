@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Logger } from '../utils/Logger';
-import { IpServiceEndpoints } from '../types';
+import { IpServiceEndpoints, IpResponseData } from '../types';
 
 /**
  * Service for detecting the current public IP address
@@ -25,27 +25,45 @@ export class IpDetectionService {
     this.ipServiceEndpoints = {
       'ipify': {
         url: 'https://api.ipify.org?format=json',
-        parser: (data: any) => data.ip
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       },
       'ifconfig': {
         url: 'https://ifconfig.me/ip',
-        parser: (data: any) => data.trim()
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       },
       'ipinfo': {
         url: 'https://ipinfo.io/json',
-        parser: (data: any) => data.ip
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       },
       'seeip': {
         url: 'https://api.seeip.org/jsonip',
-        parser: (data: any) => data.ip
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       },
       'ipapi': {
         url: 'https://ipapi.co/json',
-        parser: (data: any) => data.ip
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       },
       'myip': {
         url: 'https://api.myip.com',
-        parser: (data: any) => data.ip
+        parser: (data: IpResponseData | string) => {
+          if (typeof data === 'string') return data.trim();
+          return data.ip || '';
+        }
       }
     };
   }
