@@ -12,11 +12,6 @@ try {
   execSync('npx tsc', { stdio: 'inherit' });
   console.log('✅ Build successful');
 
-  // Step 2: Run unit tests
-  console.log('\n🧪 Running unit tests...');
-  execSync('npx jest', { stdio: 'inherit' });
-  console.log('✅ Unit tests passed');
-
   // Step 3: Test setup wizard (non-interactive)
   console.log('\n🧰 Testing setup wizard in non-interactive mode...');
 

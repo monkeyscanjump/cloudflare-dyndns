@@ -1,1 +1,2 @@
-npm run release
+#!/usr/bin/env sh
+npm run lint
