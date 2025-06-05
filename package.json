@@ -24,8 +24,8 @@
     "release:major": "npm version major && git push && git push --tags"
   },
   "bin": {
-    "cloudflare-dyndns": "./dist/index.js",
-    "cloudflare-dyndns-setup": "./dist/scripts/setup.js"
+    "cloudflare-dyndns": "dist/index.js",
+    "cloudflare-dyndns-setup": "dist/scripts/setup.js"
   },
   "keywords": [
     "cloudflare",
