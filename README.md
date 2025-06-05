@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/monkeyscanjump/cloudflare-dyndns/actions/workflows/ci.yml/badge.svg)](https://github.com/monkeyscanjump/cloudflare-dyndns/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)](package.json)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3%2B-blue)](package.json)
 
 A robust TypeScript application that automatically updates Cloudflare DNS records when your public IP address changes. Perfect for maintaining consistent domain names for home servers, WireGuard VPN, self-hosted services, or any system with a dynamic IP address.
