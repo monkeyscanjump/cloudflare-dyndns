@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3%2B-blue)](package.json)
+[![NPM Package](https://img.shields.io/npm/v/@monkeyscanjump/cloudflare-dyndns)](https://www.npmjs.com/package/@monkeyscanjump/cloudflare-dyndns)
 
 A robust TypeScript application that automatically updates Cloudflare DNS records when your public IP address changes. Perfect for maintaining consistent domain names for home servers, WireGuard VPN, self-hosted services, or any system with a dynamic IP address.
 
@@ -38,7 +39,7 @@ This package solves the problem of maintaining a consistent domain name when you
 
 ```bash
 # Install globally
-npm install -g cloudflare-dyndns
+npm install -g @monkeyscanjump/cloudflare-dyndns
 
 # Run the setup wizard
 cloudflare-dyndns-setup
@@ -54,7 +55,7 @@ cloudflare-dyndns --continuous
 mkdir cloudflare-dyndns-app && cd cloudflare-dyndns-app
 
 # Install locally
-npm install cloudflare-dyndns
+npm install @monkeyscanjump/cloudflare-dyndns
 
 # Run the setup wizard
 npx cloudflare-dyndns-setup
@@ -277,7 +278,7 @@ In continuous mode:
 npm install -g pm2
 
 # Install cloudflare-dyndns
-npm install -g cloudflare-dyndns
+npm install -g @monkeyscanjump/cloudflare-dyndns
 
 # Configure the application
 cloudflare-dyndns-setup
