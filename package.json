@@ -1,0 +1,57 @@
+{
+  "name": "cloudflare-dyndns",
+  "version": "1.0.0",
+  "description": "Updates Cloudflare DNS A record for dynamic public IP using Node.js and PM2.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev:setup": "node scripts/dev-setup.js",
+    "dev:full": "npm run dev:setup && ts-node src/index.ts --continuous --debug",
+    "dev:run": "ts-node src/index.ts --continuous --debug",
+    "dev": "npm run dev:setup && npm run dev:run",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest",
+    "postinstall": "node scripts/postinstall.js",
+    "prepare": "npm run build && node scripts/make-executable.js"
+  },
+  "bin": {
+    "cloudflare-dyndns": "./dist/index.js",
+    "cloudflare-dyndns-setup": "./dist/scripts/setup.js"
+  },
+  "keywords": [
+    "cloudflare",
+    "dyndns",
+    "dynamic-dns",
+    "nodejs",
+    "pm2",
+    "typescript",
+    "wireguard"
+  ],
+  "author": "Monkey/WHat",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "find-up": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "ecosystem.config.js",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ]
+}

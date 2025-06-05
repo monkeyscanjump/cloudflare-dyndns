@@ -1,0 +1,16 @@
+services:
+  cloudflare-dyndns:
+    build: .
+    container_name: cloudflare-dyndns
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    environment:
+      - API_TOKEN=${API_TOKEN}
+      - ZONE_ID=${ZONE_ID}
+      - RECORD_ID=${RECORD_ID}
+      - DOMAIN=${DOMAIN}
+      - SUBDOMAIN=${SUBDOMAIN}
+      - TTL=120
+      - PROXIED=false

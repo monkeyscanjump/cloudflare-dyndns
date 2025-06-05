@@ -1,0 +1,32 @@
+# Source code
+src/
+
+# Development files
+.vscode/
+.idea/
+.git/
+.github/
+.gitignore
+.eslintrc.js
+.eslintignore
+jest.config.js
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+coverage/
+tmp/
+temp/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Other
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
