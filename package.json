@@ -1,6 +1,6 @@
 {
   "name": "@monkeyscanjump/cloudflare-dyndns",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "A robust TypeScript application that automatically updates Cloudflare DNS records when your public IP address changes. Perfect for maintaining consistent domain names for home servers, WireGuard VPN, self-hosted services, or any system with a dynamic IP address.",
   "main": "dist/index.js",
   "scripts": {
