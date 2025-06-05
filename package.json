@@ -1,7 +1,7 @@
 {
   "name": "cloudflare-dyndns",
   "version": "1.0.0",
-  "description": "Updates Cloudflare DNS A record for dynamic public IP using Node.js and PM2.",
+  "description": "A robust TypeScript application that automatically updates Cloudflare DNS records when your public IP address changes. Perfect for maintaining consistent domain names for home servers, WireGuard VPN, self-hosted services, or any system with a dynamic IP address.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -12,6 +12,9 @@
     "dev": "npm run dev:setup && npm run dev:run",
     "lint": "eslint src/**/*.ts",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:all": "node scripts/test-all.js",
     "postinstall": "node scripts/postinstall.js",
     "prepare": "npm run build && node scripts/make-executable.js"
   },
@@ -36,19 +39,24 @@
     "find-up": "^5.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.0",
-    "typescript": "^5.3.3",
-    "ts-node": "^10.9.2",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
-    "eslint": "^8.56.0"
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=14.0.0"
   },
   "files": [
     "dist",
-    "scripts",
+    "scripts/postinstall.js",
+    "scripts/make-executable.js",
+    "scripts/utils.js",
     "ecosystem.config.js",
     ".env.example",
     "README.md",

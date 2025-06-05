@@ -5,10 +5,14 @@ import { version } from '../package.json';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Check if we're in development mode
+/**
+ * Checks if running in development mode by looking for .dev-mode file
+ */
 const isDevelopmentMode = fs.existsSync(path.join(process.cwd(), '.dev-mode'));
 
-// Process command line arguments
+/**
+ * Processes command line arguments into a structured object
+ */
 const args = process.argv.slice(2);
 const cliArgs: CommandLineArgs = {
   help: args.includes('--help') || args.includes('-h'),
@@ -18,21 +22,25 @@ const cliArgs: CommandLineArgs = {
   debug: args.includes('--debug')
 };
 
-// If in development mode, add special handling
+// Configure development mode environment
 if (isDevelopmentMode && cliArgs.debug) {
   console.log('🔧 Running in DEVELOPMENT MODE');
-
-  // When in development mode, we'll bypass some checks and provide better error messages
   process.env.DEVELOPMENT_MODE = 'true';
 }
 
-// Parse key-value arguments
+/**
+ * Extracts a value for a command line argument key
+ * @param key Argument key to find
+ * @returns Value following the key or undefined if not found
+ */
 function getArgValue(key: string): string | undefined {
   const index = args.indexOf(key);
   return (index !== -1 && index < args.length - 1) ? args[index + 1] : undefined;
 }
 
-// Direct configuration parameters
+/**
+ * Parse direct configuration parameters from command line arguments
+ */
 const directConfig: Partial<IConfig> = {
   API_TOKEN: getArgValue('--api-token'),
   ZONE_ID: getArgValue('--zone-id'),
@@ -41,7 +49,7 @@ const directConfig: Partial<IConfig> = {
   SUBDOMAIN: getArgValue('--subdomain')
 };
 
-// Optional parameters
+// Parse optional parameters
 if (getArgValue('--ttl')) {
   directConfig.TTL = parseInt(getArgValue('--ttl') || '120', 10);
 }
@@ -87,7 +95,9 @@ if (cliArgs.version) {
   process.exit(0);
 }
 
-// If setup mode, redirect to setup script
+/**
+ * Launches the setup wizard if requested
+ */
 if (cliArgs.setup) {
   const setupScriptPath = path.join(__dirname, 'scripts', 'setup.js');
 
@@ -95,9 +105,8 @@ if (cliArgs.setup) {
     console.log('Launching setup wizard...');
 
     try {
-      // Use synchronous require - this ensures the setup completes
       require('./scripts/setup');
-      // The setup script will call process.exit() when done, so this won't execute
+      // The setup script will call process.exit() when done
     } catch (error) {
       console.error(`Error running setup script: ${(error as Error).message}`);
       console.log(`\nPlease run 'cloudflare-dyndns-setup' instead.`);
@@ -110,7 +119,14 @@ if (cliArgs.setup) {
   }
 }
 
-// Make the script programmatically accessible by exporting the main functionality
+/**
+ * Main application function that runs the DynDNS update process
+ * @param options Configuration options
+ * @param options.continuous Whether to run in continuous monitoring mode
+ * @param options.config Direct configuration overrides
+ * @param options.debug Whether to enable debug mode
+ * @returns Promise resolving to true if successful, false otherwise
+ */
 export const runDynDns = async (
   options: {
     continuous?: boolean;
@@ -121,7 +137,6 @@ export const runDynDns = async (
   const app = new DynDnsApp(options.config || {}, options.debug || false);
 
   try {
-    // Check if setup is needed before running
     if (app.needsSetup()) {
       console.error('Configuration is missing or incomplete. Please run cloudflare-dyndns-setup first or provide configuration.');
       return false;
@@ -129,12 +144,10 @@ export const runDynDns = async (
 
     if (options.continuous) {
       console.log('Starting Cloudflare DynDNS in continuous monitoring mode...');
-      // Run in continuous monitoring mode
       await app.startMonitoring();
       return true; // This will never actually return if continuous mode is successful
     } else {
       console.log('Running Cloudflare DynDNS once...');
-      // Run once
       return await app.runOnce();
     }
   } catch (error) {

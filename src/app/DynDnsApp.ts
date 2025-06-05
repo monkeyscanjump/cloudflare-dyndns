@@ -24,26 +24,27 @@ export class DynDnsApp {
   private shutdownRequested: boolean = false;
   private debugMode: boolean = false;
 
+  /**
+   * Creates a new DynDns application instance
+   * @param directConfig Optional configuration overrides
+   * @param debug Enable debug logging
+   */
   constructor(directConfig: Partial<IConfig> = {}, debug: boolean = false) {
     this.debugMode = debug;
-
-    // Initialize components
     this.configManager = new ConfigManager(directConfig);
     this.logger = new Logger(this.configManager.get('LOG_FILE'));
 
-    // Set logger debug mode
     if (this.debugMode) {
       this.logger.setDebugMode(true);
       this.logger.debug('Debug mode enabled');
     }
 
-    // Load custom check interval if provided
+    // Apply environment variable overrides
     if (process.env.CHECK_INTERVAL) {
       this.checkInterval = parseInt(process.env.CHECK_INTERVAL, 10);
       this.logger.info(`Using custom check interval: ${this.checkInterval}ms`);
     }
 
-    // Load adaptive interval setting
     if (process.env.ADAPTIVE_INTERVAL) {
       this.adaptiveInterval = process.env.ADAPTIVE_INTERVAL === 'true';
       this.logger.info(`Adaptive interval: ${this.adaptiveInterval}`);
@@ -54,29 +55,32 @@ export class DynDnsApp {
       this.logger,
       this.configManager.get('IP_SERVICES')
     );
+
     this.cloudflareService = new CloudflareService(
       this.configManager.getAll(),
       this.logger
     );
+
     this.ipFileManager = new IpFileManager(
       this.configManager.get('LAST_IP_FILE'),
       this.logger
     );
 
-    // Setup signal handlers for graceful shutdown
+    // Register shutdown handlers
     process.on('SIGINT', this.handleShutdown.bind(this));
     process.on('SIGTERM', this.handleShutdown.bind(this));
   }
 
   /**
-   * Check if setup is needed (configuration missing or incomplete)
+   * Checks if configuration setup is needed
+   * @returns True if configuration is missing or incomplete
    */
   public needsSetup(): boolean {
     return !this.configManager.configExists();
   }
 
   /**
-   * Handle shutdown signals
+   * Handles graceful shutdown on SIGINT/SIGTERM
    */
   private handleShutdown(): void {
     if (this.shutdownRequested) {
@@ -87,17 +91,16 @@ export class DynDnsApp {
     this.shutdownRequested = true;
     this.logger.info('Shutdown requested. Waiting for current operation to complete...');
 
-    // If not currently running a check, exit immediately
     if (!this.isRunning) {
       this.logger.info('No operations in progress. Shutting down cleanly.');
       process.exit(0);
     }
-
-    // Otherwise, the current check will finish and then exit
   }
 
   /**
-   * Calculate next check interval using adaptive algorithm
+   * Calculates the next check interval using adaptive algorithm
+   * @param ipChanged Whether the IP changed in the last check
+   * @returns Time in milliseconds to wait before next check
    */
   private calculateNextInterval(ipChanged: boolean): number {
     if (!this.adaptiveInterval) {
@@ -105,70 +108,59 @@ export class DynDnsApp {
     }
 
     if (ipChanged) {
-      // IP changed, reset to minimum interval and reset stable counter
       this.consecutiveStableChecks = 0;
       this.logger.debug(`IP changed, resetting interval to minimum: ${this.minInterval}ms`);
       return this.minInterval;
-    } else {
-      // IP stable, gradually increase interval up to maximum
-      this.consecutiveStableChecks++;
-
-      // Exponential backoff: min + (consecutive * consecutive * 5000)
-      // This means check intervals will increase: 30s, 35s, 50s, 75s, 110s, etc.
-      const backoffFactor = 5000; // 5 seconds
-      const consecutiveSquared = this.consecutiveStableChecks * this.consecutiveStableChecks;
-      const backoffAmount = Math.min(consecutiveSquared * backoffFactor, this.maxInterval - this.minInterval);
-      const calculatedInterval = this.minInterval + backoffAmount;
-
-      const finalInterval = Math.min(calculatedInterval, this.maxInterval);
-
-      this.logger.debug(
-        `Adaptive interval calculation: ` +
-        `baseMin=${this.minInterval}ms, ` +
-        `consecutiveStable=${this.consecutiveStableChecks}, ` +
-        `backoff=${backoffAmount}ms, ` +
-        `calculated=${calculatedInterval}ms, ` +
-        `final=${finalInterval}ms`
-      );
-
-      return finalInterval;
     }
+
+    // IP stable, gradually increase interval up to maximum
+    this.consecutiveStableChecks++;
+
+    // Quadratic backoff formula: min + (consecutive² * factor)
+    const backoffFactor = 5000; // 5 seconds
+    const consecutiveSquared = this.consecutiveStableChecks * this.consecutiveStableChecks;
+    const backoffAmount = Math.min(consecutiveSquared * backoffFactor, this.maxInterval - this.minInterval);
+    const calculatedInterval = this.minInterval + backoffAmount;
+    const finalInterval = Math.min(calculatedInterval, this.maxInterval);
+
+    this.logger.debug(
+      `Adaptive interval: stable=${this.consecutiveStableChecks}, ` +
+      `backoff=${backoffAmount}ms, final=${finalInterval}ms`
+    );
+
+    return finalInterval;
   }
 
   /**
-   * Run a single DNS update check
+   * Runs a single DNS update check
+   * @returns True if check completed successfully (even if no update needed)
    */
   public async runOnce(): Promise<boolean> {
     this.isRunning = true;
 
     try {
-      // Special handling for development mode
+      // Handle development mode
       if (process.env.DEVELOPMENT_MODE === 'true' && this.debugMode) {
         this.logger.debug('Running in development mode - some checks may be skipped');
 
-        // If we're using mock credentials, simulate a successful update
         if (this.configManager.get('API_TOKEN').startsWith('dev_mock_')) {
           this.logger.info('DEV MODE: Using mock credentials - simulating IP detection and update');
           const mockIp = '192.168.1.' + Math.floor(Math.random() * 255);
           this.logger.info(`DEV MODE: Mock public IP: ${mockIp}`);
-
-          // Save the mock IP
           this.ipFileManager.saveIp(mockIp);
           return true;
         }
       }
 
-      // Check if we need setup first
       if (this.needsSetup()) {
-        this.logger.error('Configuration is missing or incomplete. Please run cloudflare-dyndns-setup first or provide configuration.');
+        this.logger.error('Configuration is missing or incomplete. Please run cloudflare-dyndns-setup first.');
         return false;
       }
 
-      // 1. Validate configuration
       this.configManager.validate();
       this.logger.info('Starting Cloudflare DynDNS update check');
 
-      // NEW STEP: Initialize CloudflareService to auto-discover missing configuration
+      // Initialize CloudflareService to auto-discover missing configuration
       this.logger.info('Initializing service and discovering configuration...');
       const serviceInitialized = await this.cloudflareService.initialize();
       if (!serviceInitialized) {
@@ -176,26 +168,24 @@ export class DynDnsApp {
         return false;
       }
 
-      // 2. Verify API credentials (optional check, first time only)
+      // Verify API credentials (first time only)
       if (!process.env.SKIP_CREDENTIAL_CHECK) {
         const credentialsValid = await this.cloudflareService.verifyCredentials();
         if (!credentialsValid) {
           this.logger.error('Failed to verify Cloudflare API credentials. Please check your API token.');
           return false;
         }
-        // Skip future checks in this session
         process.env.SKIP_CREDENTIAL_CHECK = 'true';
       }
 
-      // 3. Get current public IP
+      // Get current public IP
       const currentIp = await this.ipDetectionService.detectIp();
       this.logger.info(`Current public IP: ${currentIp}`);
 
-      // 4. Get last known IP
+      // Compare with last known IP
       const lastIp = this.ipFileManager.getLastIp();
       this.logger.debug(`Last known IP: ${lastIp || 'Not found'}`);
 
-      // 5. Compare IPs
       if (currentIp === lastIp) {
         this.logger.info(`IP has not changed (${currentIp}). No update needed.`);
         return true;
@@ -203,10 +193,10 @@ export class DynDnsApp {
 
       this.logger.info(`IP change detected! Old: ${lastIp || 'Not found'}, New: ${currentIp}`);
 
-      // 6. Update Cloudflare DNS record
+      // Update Cloudflare DNS record
       const updateSuccess = await this.cloudflareService.updateDnsRecord(currentIp);
 
-      // 7. If successful, save the new IP
+      // Save the new IP if update was successful
       if (updateSuccess) {
         this.ipFileManager.saveIp(currentIp);
         return true;
@@ -219,7 +209,6 @@ export class DynDnsApp {
     } finally {
       this.isRunning = false;
 
-      // Check if shutdown was requested during execution
       if (this.shutdownRequested) {
         this.logger.info('Shutdown requested during execution. Exiting cleanly.');
         process.exit(0);
@@ -228,14 +217,14 @@ export class DynDnsApp {
   }
 
   /**
-   * Start continuous monitoring for IP changes
+   * Starts continuous monitoring for IP changes
+   * Uses adaptive intervals to check more frequently when IP is changing
    */
   public async startMonitoring(): Promise<void> {
     this.logger.info('Starting continuous IP monitoring service');
 
-    // Check for configuration before starting monitoring loop
     if (this.needsSetup()) {
-      this.logger.error('Configuration is missing or incomplete. Please run cloudflare-dyndns-setup first or provide configuration.');
+      this.logger.error('Configuration is missing or incomplete. Please run cloudflare-dyndns-setup first.');
       process.exit(1);
     }
 
@@ -244,20 +233,14 @@ export class DynDnsApp {
 
     while (true) {
       try {
-        // Run the check
         const result = await this.runOnce();
         ipChanged = !result; // If result is false, likely means IP changed but update failed
-
-        // Calculate the next interval based on result
         nextInterval = this.calculateNextInterval(ipChanged);
 
         this.logger.info(`Next check in ${nextInterval/1000} seconds`);
-
-        // Wait for the next interval
         await new Promise(resolve => setTimeout(resolve, nextInterval));
       } catch (error) {
         this.logger.error(`Error in monitoring loop: ${(error as Error).message}`);
-        // Wait a short time before retrying after an error
         await new Promise(resolve => setTimeout(resolve, 30000));
       }
     }

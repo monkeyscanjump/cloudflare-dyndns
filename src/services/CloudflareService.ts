@@ -6,6 +6,7 @@ import { IpDetectionService } from './IpDetectionService';
 
 /**
  * Service for interacting with the Cloudflare API
+ * Handles zone and DNS record management with automatic discovery
  */
 export class CloudflareService {
   private config: IConfig;
@@ -14,27 +15,26 @@ export class CloudflareService {
   private apiVersion: string;
   private apiBaseUrl: string;
 
+  /**
+   * Creates a new Cloudflare service instance
+   * @param config Application configuration
+   * @param logger Logger instance
+   */
   constructor(config: IConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
-
-    // Allow override via environment variables
     this.apiVersion = this.config.API_VERSION || process.env.CLOUDFLARE_API_VERSION || CloudflareApiConfig.version;
-
-    // Use the correct API base URL with "/client"
     this.apiBaseUrl = this.config.API_URL || process.env.CLOUDFLARE_API_URL || CloudflareApiConfig.baseUrl;
-
-    // Store base axios config - headers are handled separately
     this.axiosConfig = {
       timeout: 30000
     };
   }
 
   /**
-   * Get authorization headers for every request
+   * Gets authorization headers for API requests
+   * @returns Headers object with authorization
    */
   private getHeaders() {
-    // Using API Token authentication (Bearer)
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.config.API_TOKEN.trim()}`
@@ -42,14 +42,20 @@ export class CloudflareService {
   }
 
   /**
-   * Build full API URL with version and endpoint
+   * Builds full API URL with version and endpoint
+   * @param endpoint API endpoint path
+   * @returns Complete API URL
    */
   private getApiUrl(endpoint: string): string {
     return `${this.apiBaseUrl}/${this.apiVersion}${endpoint}`;
   }
 
   /**
-   * Make an API request with fallback for endpoint changes
+   * Makes an API request with fallback for endpoint changes
+   * @param endpoint API endpoint to call
+   * @param method HTTP method
+   * @param data Optional request body
+   * @returns API response data
    */
   private async makeApiRequest<T>(
     endpoint: string,
@@ -61,7 +67,6 @@ export class CloudflareService {
     try {
       this.logger.debug(`Making ${method.toUpperCase()} request to: ${primaryUrl}`);
 
-      // FIX: Don't let axiosConfig override the headers
       const response = await axios({
         method,
         url: primaryUrl,
@@ -84,7 +89,12 @@ export class CloudflareService {
   }
 
   /**
-   * Handle API changes by trying alternative endpoints or versions
+   * Handles API changes by trying alternative endpoints or versions
+   * @param endpoint Original endpoint that failed
+   * @param method HTTP method
+   * @param data Optional request body
+   * @param originalError Original error
+   * @returns API response from alternative endpoint
    */
   private async handleApiChange<T>(
     endpoint: string,
@@ -92,9 +102,8 @@ export class CloudflareService {
     data?: any,
     originalError?: Error
   ): Promise<T> {
-    // First try alternative versions if this is a version issue
+    // Try alternative API versions
     if (endpoint.includes('/zones') || endpoint.includes('/dns_records')) {
-      // Try alternative API versions
       const alternativeVersions = ['v5', 'v4', 'v3'].filter(v => v !== this.apiVersion);
 
       for (const version of alternativeVersions) {
@@ -102,7 +111,6 @@ export class CloudflareService {
           this.logger.debug(`Trying alternative API version: ${version}`);
           const url = `${this.apiBaseUrl}/${version}${endpoint}`;
 
-          // FIX: Don't let axiosConfig override the headers
           const response = await axios({
             method,
             url,
@@ -118,17 +126,14 @@ export class CloudflareService {
           }
         } catch (versionError) {
           this.logger.debug(`API version ${version} failed: ${(versionError as Error).message}`);
-          // Continue to next version
         }
       }
     }
 
-    // If endpoint contains DNS records, try alternative endpoints
+    // Try alternative endpoint formats
     if (endpoint.includes('/dns_records')) {
       const alternativeEndpoints = [
-        // v4 alternative formats
         endpoint.replace('/dns_records', '/dns'),
-        // v5 potential format
         endpoint.replace('/dns_records', '/dns_records/v2')
       ];
 
@@ -137,7 +142,6 @@ export class CloudflareService {
           this.logger.debug(`Trying alternative endpoint: ${altEndpoint}`);
           const url = this.getApiUrl(altEndpoint);
 
-          // FIX: Don't let axiosConfig override the headers
           const response = await axios({
             method,
             url,
@@ -152,26 +156,23 @@ export class CloudflareService {
           }
         } catch (endpointError) {
           this.logger.debug(`Alternative endpoint failed: ${(endpointError as Error).message}`);
-          // Continue to next endpoint
         }
       }
     }
 
-    // If all alternatives failed, throw the original error
     throw originalError || new Error(`API request to ${endpoint} failed`);
   }
 
   /**
-   * Initialize the service by looking up missing configuration
+   * Initializes the service by discovering missing configuration
+   * @returns True if initialization succeeded
    */
   public async initialize(): Promise<boolean> {
     try {
       this.logger.info('Initializing Cloudflare service and discovering configuration...');
-
-      // Log the API URL being used to help with debugging
       this.logger.debug(`Using Cloudflare API URL: ${this.apiBaseUrl}/${this.apiVersion}`);
 
-      // Check if API version auto-detection is needed
+      // Auto-detect API version if needed
       if (this.config.AUTO_DETECT_API || process.env.CLOUDFLARE_AUTO_DETECT_API === 'true') {
         this.logger.info('Auto-detecting Cloudflare API version...');
         try {
@@ -181,7 +182,7 @@ export class CloudflareService {
         }
       }
 
-      // Step 1: If ZONE_ID is missing, fetch available zones
+      // Step 1: Discover Zone ID if missing
       if (!this.config.ZONE_ID) {
         this.logger.info('No Zone ID provided, attempting to discover zones...');
         const zoneId = await this.lookupZoneId();
@@ -195,13 +196,13 @@ export class CloudflareService {
         }
       }
 
-      // Step 2: Build FQDN if domain and subdomain are provided
+      // Step 2: Build FQDN from domain and subdomain
       if (this.config.DOMAIN && this.config.SUBDOMAIN && !this.config.FQDN) {
         this.config.FQDN = `${this.config.SUBDOMAIN}.${this.config.DOMAIN}`;
         this.logger.info(`Using FQDN: ${this.config.FQDN}`);
       }
 
-      // Step 3: If we still don't have FQDN but have RECORD_ID, look it up
+      // Step 3: Look up FQDN from Record ID if we have it
       if (!this.config.FQDN && this.config.RECORD_ID) {
         this.logger.info('Looking up FQDN from Record ID...');
         const fqdn = await this.lookupFqdnFromRecordId();
@@ -210,7 +211,7 @@ export class CloudflareService {
           this.config.FQDN = fqdn;
           this.logger.info(`Using FQDN: ${fqdn}`);
 
-          // Try to extract domain and subdomain from FQDN
+          // Extract domain and subdomain from FQDN
           const parts = fqdn.split('.');
           if (parts.length >= 2) {
             this.config.SUBDOMAIN = parts[0];
@@ -220,7 +221,7 @@ export class CloudflareService {
         }
       }
 
-      // Step 4: If RECORD_ID is missing but we have FQDN, look up the record
+      // Step 4: Find or create record based on FQDN
       if (!this.config.RECORD_ID && this.config.FQDN) {
         this.logger.info(`No Record ID provided, searching for ${this.config.FQDN}...`);
         const recordId = await this.lookupRecordId();
@@ -241,7 +242,7 @@ export class CloudflareService {
         }
       }
 
-      // Step 5: If we still don't have enough information, try to find a suitable record
+      // Step 5: Only find a suitable record if we have no other option
       if (!this.config.RECORD_ID) {
         this.logger.info('No record specifics provided, attempting to find a suitable A record...');
         const recordInfo = await this.findSuitableRecord();
@@ -250,7 +251,7 @@ export class CloudflareService {
           this.config.RECORD_ID = recordInfo.id;
           this.config.FQDN = recordInfo.name;
 
-          // Try to extract domain and subdomain
+          // Extract domain and subdomain
           const parts = recordInfo.name.split('.');
           if (parts.length >= 2) {
             this.config.SUBDOMAIN = parts[0];
@@ -283,19 +284,17 @@ export class CloudflareService {
   }
 
   /**
-   * Detect the Cloudflare API version
+   * Detects which Cloudflare API version is available
+   * @returns Detected API version string
    */
   private async detectApiVersion(): Promise<string> {
     const versions = ['v4', 'v5', 'v3'];
 
     for (const version of versions) {
       try {
-        // Try a simple endpoint that's likely to exist in all versions
         const testUrl = `${this.apiBaseUrl}/${version}/zones`;
-
         this.logger.debug(`Testing API version ${version} with URL: ${testUrl}`);
 
-        // FIX: Use only headers and timeout
         const response = await axios.get(testUrl, {
           headers: this.getHeaders(),
           timeout: 5000
@@ -307,7 +306,6 @@ export class CloudflareService {
           return version;
         }
       } catch (error) {
-        // Only log at debug level as this is expected to fail for some versions
         this.logger.debug(`API version ${version} check failed: ${(error as Error).message}`);
       }
     }
@@ -317,26 +315,26 @@ export class CloudflareService {
   }
 
   /**
-   * Look up the Zone ID for the user's domains
+   * Looks up the Zone ID for the user's domain
+   * @returns Zone ID or null if not found
    */
   private async lookupZoneId(): Promise<string | null> {
     try {
       const endpoint = CloudflareApiConfig.endpoints.listZones + '?per_page=50';
-
       const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
 
       if (response.success && response.result?.length > 0) {
-        // If there's only one zone, use it
+        // Single zone case
         if (response.result.length === 1) {
           const zone = response.result[0];
           this.logger.info(`Found single zone: ${zone.name} (${zone.id})`);
           return zone.id;
         }
 
-        // If we have a domain hint, try to find a matching zone
+        // Try to match by domain name
         if (this.config.DOMAIN) {
           const matchingZone = response.result.find((zone: any) =>
-            zone.name === this.config.DOMAIN
+            zone.name.toLowerCase() === this.config.DOMAIN.toLowerCase()
           );
 
           if (matchingZone) {
@@ -345,16 +343,21 @@ export class CloudflareService {
           }
         }
 
-        // Otherwise log the available zones for the user
+        // Show available zones
         this.logger.warn('Multiple zones found for this API token. Please specify ZONE_ID in configuration.');
         this.logger.info('Available zones:');
         response.result.forEach((zone: any, index: number) => {
           this.logger.info(`${index + 1}. ${zone.name} (ID: ${zone.id})`);
         });
 
-        // Return the first zone as a fallback if we have to choose something
-        this.logger.warn(`Using first zone by default: ${response.result[0].name} (${response.result[0].id})`);
-        return response.result[0].id;
+        // Only use first zone if we have to
+        if (this.config.DOMAIN) {
+          this.logger.warn(`Could not find exact match for ${this.config.DOMAIN}. Manual configuration required.`);
+          return null;
+        } else {
+          this.logger.warn(`Using first zone by default: ${response.result[0].name} (${response.result[0].id})`);
+          return response.result[0].id;
+        }
       } else {
         this.logger.error('No zones found for this API token. Please verify your token has the correct permissions.');
       }
@@ -370,7 +373,8 @@ export class CloudflareService {
   }
 
   /**
-   * Look up the DNS record ID based on FQDN
+   * Looks up the DNS record ID based on FQDN
+   * @returns Record ID or null if not found
    */
   public async lookupRecordId(): Promise<string | null> {
     try {
@@ -385,7 +389,6 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID) + `?type=A&name=${this.config.FQDN}`;
-
       const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
 
       if (response.success && response.result?.length > 0) {
@@ -404,9 +407,18 @@ export class CloudflareService {
   }
 
   /**
-   * Find a suitable A record to update if specific details aren't provided
+   * Finds a suitable A record to update if specific details aren't provided
+   * Only called when no DOMAIN/SUBDOMAIN is configured
+   * @returns Record information or null if no suitable record found
    */
   private async findSuitableRecord(): Promise<{ id: string, name: string } | null> {
+    // SAFETY ENHANCEMENT: If FQDN is configured, don't select other records
+    if (this.config.FQDN) {
+      this.logger.warn(`FQDN ${this.config.FQDN} is configured, but no matching record found.`);
+      this.logger.warn('Will not attempt to update any other records to avoid mistakes.');
+      return null;
+    }
+
     try {
       if (!this.config.ZONE_ID) {
         this.logger.error('Zone ID is required to find suitable records');
@@ -414,7 +426,6 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID) + '?type=A&per_page=100';
-
       const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
 
       if (response.success && response.result?.length > 0) {
@@ -424,8 +435,7 @@ export class CloudflareService {
           this.logger.info(`${index + 1}. ${record.name} (${record.content})`);
         });
 
-        // Try to find a record that seems like a subdomain (not the root domain)
-        // FIXED: Handle case where zone_name might be undefined
+        // Try to find a subdomain record
         const subdomain = response.result.find((record: any) => {
           const zoneName = record.zone_name || '';
           return record.name !== zoneName && !record.name.includes('*');
@@ -436,7 +446,7 @@ export class CloudflareService {
           return { id: subdomain.id, name: subdomain.name };
         }
 
-        // Fallback to the first record
+        // First record fallback
         this.logger.info(`Using first A record: ${response.result[0].name}`);
         return {
           id: response.result[0].id,
@@ -456,7 +466,8 @@ export class CloudflareService {
   }
 
   /**
-   * Look up the FQDN from a record ID
+   * Looks up the FQDN from a record ID
+   * @returns FQDN or null if not found
    */
   private async lookupFqdnFromRecordId(): Promise<string | null> {
     try {
@@ -465,7 +476,6 @@ export class CloudflareService {
       }
 
       const endpoint = CloudflareApiConfig.endpoints.getRecord(this.config.ZONE_ID, this.config.RECORD_ID);
-
       const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
 
       if (response.success && response.result) {
@@ -483,16 +493,21 @@ export class CloudflareService {
   }
 
   /**
-   * Create a new DNS record
+   * Creates a new DNS record with the current IP address
+   * @returns New record ID or null if creation failed
    */
   private async createDnsRecord(): Promise<string | null> {
     try {
-      // Get current IP address first
       const ipService = new IpDetectionService(this.logger, this.config.IP_SERVICES);
       const currentIp = await ipService.detectIp();
 
       if (!currentIp) {
         this.logger.error('Could not detect current IP address to create DNS record');
+        return null;
+      }
+
+      if (!this.config.ZONE_ID) {
+        this.logger.error('Zone ID is required to create a DNS record');
         return null;
       }
 
@@ -505,7 +520,6 @@ export class CloudflareService {
       };
 
       const endpoint = CloudflareApiConfig.endpoints.listRecords(this.config.ZONE_ID);
-
       const response = await this.makeApiRequest<CloudflareApiResponse>(
         endpoint, 'post', data
       );
@@ -525,23 +539,24 @@ export class CloudflareService {
   }
 
   /**
-   * Verify that the API credentials are valid
+   * Verifies that the API credentials are valid
+   * @returns True if credentials are valid
    */
   public async verifyCredentials(): Promise<boolean> {
     try {
-      // First try to verify with token verify endpoint
+      // Try token verify endpoint first
       try {
         const verifyEndpoint = '/user/tokens/verify';
         const response = await this.makeApiRequest<CloudflareApiResponse>(verifyEndpoint);
         if (response.success) {
-          this.logger.info('Successfully verified Cloudflare API credentials using token verify');
+          this.logger.info('Successfully verified Cloudflare API credentials');
           return true;
         }
       } catch (error) {
         this.logger.debug(`Token verify failed: ${(error as Error).message}. Trying fallback verification.`);
       }
 
-      // Fallback to checking zones access
+      // Fallback to zones endpoint
       const endpoint = CloudflareApiConfig.endpoints.listZones + '?per_page=1';
       const response = await this.makeApiRequest<CloudflareApiResponse>(endpoint);
 
@@ -562,9 +577,16 @@ export class CloudflareService {
   }
 
   /**
-   * Update the DNS record with the new IP address
+   * Updates the DNS record with a new IP address
+   * @param newIp New IP address to set
+   * @returns True if update was successful
    */
   public async updateDnsRecord(newIp: string): Promise<boolean> {
+    if (!this.config.ZONE_ID || !this.config.RECORD_ID) {
+      this.logger.error('Zone ID and Record ID are required to update a DNS record');
+      return false;
+    }
+
     const data: CloudflareDnsData = {
       type: 'A',
       name: this.config.FQDN,
@@ -574,7 +596,6 @@ export class CloudflareService {
     };
 
     this.logger.info(`Updating DNS record for ${this.config.FQDN} to ${newIp} (TTL: ${this.config.TTL}, Proxied: ${this.config.PROXIED})`);
-
     const endpoint = CloudflareApiConfig.endpoints.updateRecord(this.config.ZONE_ID, this.config.RECORD_ID);
 
     try {
@@ -586,7 +607,7 @@ export class CloudflareService {
         this.logger.info(`DNS record for ${this.config.FQDN} successfully updated to ${newIp}`);
         return true;
       } else {
-        const errors = response.errors.map(err => err.message).join('; ');
+        const errors = response.errors?.map(err => err.message).join('; ');
         this.logger.error(`Failed to update DNS record: ${errors}`);
         this.logger.debug(`Cloudflare API response: ${JSON.stringify(response)}`);
         return false;
@@ -601,12 +622,13 @@ export class CloudflareService {
   }
 
   /**
-   * Retry an operation with exponential backoff
+   * Retries an operation with exponential backoff
+   * @param operation Function to retry
+   * @returns Result of the operation
    */
   private async retryOperation<T>(operation: () => Promise<T>): Promise<T> {
     const maxRetries = this.config.RETRY_ATTEMPTS;
     const retryDelay = this.config.RETRY_DELAY;
-
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -615,8 +637,8 @@ export class CloudflareService {
       } catch (error) {
         lastError = error as Error;
 
-        if ((error as any).response && (error as any).response.status === 429) {
-          // Rate limit encountered - use the retry-after header if available
+        if ((error as any).response?.status === 429) {
+          // Rate limit handling
           const retryAfter = (error as any).response.headers['retry-after']
             ? parseInt((error as any).response.headers['retry-after'], 10) * 1000
             : retryDelay;

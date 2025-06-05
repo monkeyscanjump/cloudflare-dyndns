@@ -9,6 +9,11 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
+/**
+ * Prompts the user with a question and returns their answer
+ * @param question Text to display to the user
+ * @returns User's response as a string
+ */
 async function promptUser(question: string): Promise<string> {
   return new Promise((resolve) => {
     rl.question(question, (answer) => {
@@ -17,38 +22,32 @@ async function promptUser(question: string): Promise<string> {
   });
 }
 
-// Find all possible configuration locations
+/**
+ * Returns all possible configuration file locations across different platforms
+ * @returns Array of possible configuration file paths
+ */
 function findConfigLocations(): string[] {
   return [
-    // Current directory
     path.join(process.cwd(), '.env'),
-
-    // User home directory
     path.join(os.homedir(), '.cloudflare-dyndns', '.env'),
-
-    // System-wide location (Windows)
     ...(process.platform === 'win32'
         ? [path.join(process.env.ProgramData || 'C:\\ProgramData', 'cloudflare-dyndns', '.env')]
-        : []),
-
-    // System-wide location (Linux/Mac)
-    ...(process.platform !== 'win32'
-        ? ['/etc/cloudflare-dyndns/.env']
-        : [])
+        : ['/etc/cloudflare-dyndns/.env'])
   ];
 }
 
+/**
+ * Interactive setup wizard for configuring the Cloudflare DynDNS application
+ * Handles both creating new configurations and editing existing ones
+ */
 async function setupConfig(): Promise<void> {
   console.log('Cloudflare DynDNS Setup');
   console.log('=======================');
   console.log('This wizard will help you set up the configuration for Cloudflare DynDNS.\n');
 
-  // Find possible config locations
   const configLocations = findConfigLocations();
-
-  // Check if any config already exists
   let existingConfigs = configLocations.filter(loc => fs.existsSync(loc));
-  let overwriteChoice = 'new'; // Initialize with default value
+  let overwriteChoice = 'new';
 
   if (existingConfigs.length > 0) {
     console.log('Existing configuration files found:');
@@ -113,7 +112,7 @@ async function setupConfig(): Promise<void> {
           fs.writeFileSync(fileToEdit, updatedConfig);
           console.log(`\nConfiguration updated at: ${fileToEdit}`);
           rl.close();
-          return; // Exit early as we've completed the edit
+          return;
         } catch (error) {
           console.error(`Error writing to ${fileToEdit}:`, error);
           console.log('Trying to create a new configuration instead...');
@@ -122,13 +121,11 @@ async function setupConfig(): Promise<void> {
     }
   }
 
-  // Create new config if we didn't successfully edit an existing one
   // Determine where to save the new config
   let configDir: string;
   let configFile: string;
 
-  // If globally installed, prefer ~/.cloudflare-dyndns/
-  // If locally installed, prefer current directory
+  // Choose appropriate location based on installation type
   if (process.env.npm_config_global === 'true') {
     configDir = path.join(os.homedir(), '.cloudflare-dyndns');
     configFile = path.join(configDir, '.env');
@@ -144,8 +141,6 @@ async function setupConfig(): Promise<void> {
       console.log(`Created configuration directory: ${configDir}`);
     } catch (error) {
       console.error(`Error creating directory ${configDir}:`, error);
-
-      // Fall back to current directory
       configDir = process.cwd();
       configFile = path.join(configDir, '.env');
       console.log(`Falling back to current directory: ${configDir}`);
@@ -158,7 +153,6 @@ async function setupConfig(): Promise<void> {
 
   const apiToken = await promptUser('Cloudflare API Token: ');
 
-  // Make these optional with clear instructions
   console.log('\nThe following values can be auto-detected in most cases. Leave blank to auto-detect:');
   const zoneId = await promptUser('Cloudflare Zone ID (optional): ');
   const recordId = await promptUser('DNS Record ID (optional): ');
@@ -167,7 +161,6 @@ async function setupConfig(): Promise<void> {
   const domain = await promptUser('Domain (e.g., example.com): ');
   const subdomain = await promptUser('Subdomain (e.g., wireguard): ');
 
-  // Optional configuration with defaults
   console.log('\nAdditional options (press Enter to use defaults):');
   const ttl = await promptUser('TTL in seconds (default: 120): ') || '120';
   const proxied = await promptUser('Enable Cloudflare proxy? (true/false, default: false): ') || 'false';
@@ -202,7 +195,7 @@ ADAPTIVE_INTERVAL=true
 
     if (fs.existsSync(configFile)) {
       try {
-        // Make sure the config file is readable only by the owner (contains API tokens)
+        // Secure the config file (contains API tokens)
         if (process.platform !== 'win32') {
           fs.chmodSync(configFile, 0o600);
         }

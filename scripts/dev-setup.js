@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+
+/**
+ * Development environment setup script for Cloudflare DynDNS
+ * Creates configuration files with either mock values or real credentials
+ * @module dev-setup
+ */
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -25,8 +31,11 @@ if (fs.existsSync(devEnvPath) && fs.existsSync(path.join(process.cwd(), '.dev-mo
   setupDevEnvironment();
 }
 
+/**
+ * Sets up the development environment by creating configuration files
+ * Prompts user to choose between mock values or real credentials
+ */
 function setupDevEnvironment() {
-  // Ask if the user wants to use mock values or enter real credentials
   rl.question('Do you want to use mock values for development? (y/N): ', (answer) => {
     if (answer.toLowerCase() === 'y') {
       // Use mock values
@@ -69,6 +78,10 @@ IP_SERVICES=ipify
   });
 }
 
+/**
+ * Prompts the user for their Cloudflare credentials
+ * Creates a .env file with the provided values
+ */
 function promptForCredentials() {
   rl.question('Cloudflare API Token: ', (apiToken) => {
     rl.question('Zone ID: ', (zoneId) => {

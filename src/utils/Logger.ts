@@ -4,12 +4,17 @@ import * as path from 'path';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
- * Handles application logging with file rotation and multiple log levels
+ * Handles application logging with console and file output
+ * Supports multiple severity levels and automatic log directory creation
  */
 export class Logger {
   private logFile: string;
   private debugEnabled: boolean = false;
 
+  /**
+   * Creates a new logger instance
+   * @param logFile Path to the log file where messages will be stored
+   */
   constructor(logFile: string) {
     this.logFile = logFile;
 
@@ -25,7 +30,8 @@ export class Logger {
   }
 
   /**
-   * Enable or disable debug mode
+   * Enables or disables debug-level logging
+   * @param enabled Whether debug messages should be logged
    */
   public setDebugMode(enabled: boolean): void {
     this.debugEnabled = enabled;
@@ -33,14 +39,18 @@ export class Logger {
   }
 
   /**
-   * Check if debug mode is enabled
+   * Checks if debug mode is currently enabled
+   * @returns True if debug logging is enabled
    */
   public isDebugEnabled(): boolean {
     return this.debugEnabled;
   }
 
   /**
-   * Log a message with the specified level
+   * Logs a message with the specified severity level
+   * Writes to both console and log file
+   * @param message Message text to log
+   * @param level Severity level of the message
    */
   public log(message: string, level: LogLevel = 'info'): void {
     // Skip debug messages if debug mode is not enabled
@@ -69,28 +79,33 @@ export class Logger {
   }
 
   /**
-   * Log a debug message
+   * Logs a debug-level message
+   * Only logged if debug mode is enabled
+   * @param message Debug message to log
    */
   public debug(message: string): void {
     this.log(message, 'debug');
   }
 
   /**
-   * Log an info message
+   * Logs an informational message
+   * @param message Info message to log
    */
   public info(message: string): void {
     this.log(message, 'info');
   }
 
   /**
-   * Log a warning message
+   * Logs a warning message
+   * @param message Warning message to log
    */
   public warn(message: string): void {
     this.log(message, 'warn');
   }
 
   /**
-   * Log an error message
+   * Logs an error message
+   * @param message Error message to log
    */
   public error(message: string): void {
     this.log(message, 'error');

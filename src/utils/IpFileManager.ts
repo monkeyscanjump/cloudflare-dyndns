@@ -4,11 +4,17 @@ import { Logger } from './Logger';
 
 /**
  * Manages the storage and retrieval of the last detected IP address
+ * Handles file operations for persisting IP information between runs
  */
 export class IpFileManager {
   private ipFilePath: string;
   private logger: Logger;
 
+  /**
+   * Creates a new IP file manager
+   * @param ipFilePath Path to the file where IP address will be stored
+   * @param logger Logger instance for recording file operations
+   */
   constructor(ipFilePath: string, logger: Logger) {
     this.ipFilePath = ipFilePath;
     this.logger = logger;
@@ -16,7 +22,8 @@ export class IpFileManager {
   }
 
   /**
-   * Ensure the directory for the IP file exists
+   * Ensures the directory for the IP file exists, creating it if necessary
+   * @throws Error if the directory cannot be created
    */
   private ensureIpFileDirectoryExists(): void {
     const ipDir = path.dirname(this.ipFilePath);
@@ -32,7 +39,8 @@ export class IpFileManager {
   }
 
   /**
-   * Get the last saved IP address
+   * Retrieves the last saved IP address from storage
+   * @returns The last saved IP address or null if none exists
    */
   public getLastIp(): string | null {
     try {
@@ -46,7 +54,9 @@ export class IpFileManager {
   }
 
   /**
-   * Save the current IP address
+   * Saves the current IP address to storage
+   * @param ip Current IP address to save
+   * @returns True if the save operation was successful
    */
   public saveIp(ip: string): boolean {
     try {

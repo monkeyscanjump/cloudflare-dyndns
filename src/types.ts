@@ -3,8 +3,8 @@
  */
 export interface IConfig {
   API_TOKEN: string;
-  ZONE_ID: string;
-  RECORD_ID: string;
+  ZONE_ID?: string;
+  RECORD_ID?: string;
   DOMAIN: string;
   SUBDOMAIN: string;
   FQDN: string;

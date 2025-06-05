@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+
+/**
+ * Post-installation script for cloudflare-dyndns
+ * Sets up necessary directories and configuration files after npm install
+ * Handles both global and local installations differently
+ * @module postinstall
+ */
 const utils = require('./utils');
 
 console.log('Running post-installation setup for cloudflare-dyndns...');

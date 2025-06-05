@@ -4,22 +4,24 @@ import { IpServiceEndpoints } from '../types';
 
 /**
  * Service for detecting the current public IP address
- * with multiple fallback services
+ * with multiple fallback services for reliability
  */
 export class IpDetectionService {
   private logger: Logger;
   private ipServices: string[];
   private ipServiceEndpoints: IpServiceEndpoints;
 
+  /**
+   * Creates a new IP detection service instance
+   * @param logger Logger instance for recording detection activity
+   * @param ipServices Array of service identifiers to use for IP detection
+   */
   constructor(logger: Logger, ipServices: string[] = ['ipify', 'ifconfig', 'ipinfo', 'seeip']) {
     this.logger = logger;
-
-    // Ensure we have a valid list of services
     this.ipServices = ipServices && ipServices.length > 0
       ? ipServices
       : ['ipify', 'ifconfig', 'ipinfo', 'seeip'];
 
-    // Define IP detection services with their parsing logic
     this.ipServiceEndpoints = {
       'ipify': {
         url: 'https://api.ipify.org?format=json',
@@ -37,7 +39,6 @@ export class IpDetectionService {
         url: 'https://api.seeip.org/jsonip',
         parser: (data: any) => data.ip
       },
-      // Add additional services as fallbacks
       'ipapi': {
         url: 'https://ipapi.co/json',
         parser: (data: any) => data.ip
@@ -50,11 +51,11 @@ export class IpDetectionService {
   }
 
   /**
-   * Detect the current public IP address using multiple services
-   * with fallback
+   * Detects the current public IP address using multiple services with fallback
+   * @returns Promise resolving to the current public IPv4 address
+   * @throws Error if all configured IP detection services fail
    */
   public async detectIp(): Promise<string> {
-    // Randomize the order of services to distribute load
     const shuffledServices = [...this.ipServices].sort(() => Math.random() - 0.5);
     const errorMessages: string[] = [];
 
@@ -76,15 +77,12 @@ export class IpDetectionService {
           }
         });
 
-        // Ensure we have valid data
         if (!response.data) {
           throw new Error(`Empty response from ${service}`);
         }
 
-        // Parse the IP address
         const ip = endpoint.parser(response.data);
 
-        // Validate IP format
         if (this.isValidIpv4(ip)) {
           this.logger.debug(`Successfully detected IP ${ip} using ${service}`);
           return ip;
@@ -100,7 +98,6 @@ export class IpDetectionService {
       }
     }
 
-    // If we've reached this point, all services failed
     const errorDetail = errorMessages.length > 0
       ? `\nErrors: ${errorMessages.join('\n')}`
       : '';
@@ -109,7 +106,9 @@ export class IpDetectionService {
   }
 
   /**
-   * Validate IPv4 address format
+   * Validates if a string is a properly formatted IPv4 address
+   * @param ip String to validate as an IPv4 address
+   * @returns True if the string is a valid IPv4 address
    */
   private isValidIpv4(ip: string): boolean {
     if (!ip || typeof ip !== 'string') return false;
@@ -117,16 +116,16 @@ export class IpDetectionService {
     const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
     if (!ipv4Regex.test(ip)) return false;
 
-    // Validate each octet is between 0-255
     return ip.split('.').map(Number).every(num => num >= 0 && num <= 255);
   }
 
   /**
-   * Attempt to get fallback IP from various sources (for testing/debug only)
+   * Attempts to get a fallback IP from an alternative source
+   * Used as a last resort when other methods fail
+   * @returns Promise resolving to an IP address or null if unavailable
    */
   public async getFallbackIp(): Promise<string | null> {
     try {
-      // Try one more exotic IP service as a last resort
       const lastResortUrl = 'https://checkip.amazonaws.com/';
       const response = await axios.get(lastResortUrl, {
         timeout: 5000,

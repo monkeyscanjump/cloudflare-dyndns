@@ -5,20 +5,28 @@ import * as os from 'os';
 import { IConfig } from '../types';
 
 /**
- * Manages application configuration from environment variables
- * with OS-agnostic paths and sensible defaults
+ * Manages application configuration from multiple sources
+ * Loads from .env files, environment variables and direct configuration
+ * with priority handling and OS-specific paths
  */
 export class ConfigManager {
   private config: IConfig;
-  // Only require API_TOKEN - everything else can be auto-discovered
+
+  /**
+   * Required configuration parameters for the application to function
+   * These must be provided or the validation will fail
+   */
   private requiredEnvVars: string[] = [
     'API_TOKEN',
     'DOMAIN',
     'SUBDOMAIN'
   ];
 
+  /**
+   * Creates a new configuration manager
+   * @param directConfig Optional configuration values to override environment variables
+   */
   constructor(directConfig: Partial<IConfig> = {}) {
-    // Load environment variables from multiple possible locations
     this.loadEnvironmentVariables();
 
     // Initialize configuration with defaults - support both prefixed and non-prefixed env vars
@@ -44,9 +52,8 @@ export class ConfigManager {
       AUTO_DETECT_API: process.env.CLOUDFLARE_AUTO_DETECT_API === 'true'
     };
 
-    // Override with any direct configuration provided - fixed to be type-safe
+    // Apply direct configuration overrides
     if (directConfig) {
-      // Apply each config property individually with type safety
       if (directConfig.API_TOKEN !== undefined) this.config.API_TOKEN = directConfig.API_TOKEN;
       if (directConfig.ZONE_ID !== undefined) this.config.ZONE_ID = directConfig.ZONE_ID;
       if (directConfig.RECORD_ID !== undefined) this.config.RECORD_ID = directConfig.RECORD_ID;
@@ -70,12 +77,13 @@ export class ConfigManager {
       }
     }
 
-    // Create required directories
     this.ensureDirectoriesExist();
   }
 
   /**
-   * Set a configuration value
+   * Sets a configuration value and updates dependent values
+   * @param key Configuration key to set
+   * @param value New value for the configuration key
    */
   public set<K extends keyof IConfig>(key: K, value: IConfig[K]): void {
     this.config[key] = value;
@@ -90,7 +98,10 @@ export class ConfigManager {
   }
 
   /**
-   * Construct properly formatted FQDN from subdomain and domain
+   * Builds a fully qualified domain name from subdomain and domain parts
+   * @param subdomain Subdomain component
+   * @param domain Domain component
+   * @returns Formatted FQDN or empty string if insufficient parts
    */
   private constructFqdn(subdomain?: string, domain?: string): string {
     if (!subdomain || subdomain.trim() === '') {
@@ -100,7 +111,8 @@ export class ConfigManager {
   }
 
   /**
-   * Load environment variables from multiple possible locations
+   * Loads environment variables from multiple locations in priority order
+   * Tries several common paths for .env files
    */
   private loadEnvironmentVariables(): void {
     // Possible config locations in order of precedence
@@ -137,7 +149,7 @@ export class ConfigManager {
   }
 
   /**
-   * Create necessary directories for logs and IP storage
+   * Creates directories needed for logs and IP storage if they don't exist
    */
   private ensureDirectoriesExist(): void {
     const logDir = path.dirname(this.config.LOG_FILE);
@@ -150,17 +162,16 @@ export class ConfigManager {
           console.log(`Created directory: ${dir}`);
         } catch (error) {
           console.error(`Error creating directory ${dir}: ${(error as Error).message}`);
-          // Continue even if we couldn't create the directory - we'll handle errors when writing
         }
       }
     });
   }
 
   /**
-   * Get default log path based on OS
+   * Determines the appropriate log file path based on the current OS
+   * @returns OS-specific default log path
    */
   private getDefaultLogPath(): string {
-    // ... existing implementation unchanged ...
     if (process.platform === 'win32') {
       return path.join(
         process.env.PROGRAMDATA || 'C:\\ProgramData',
@@ -186,10 +197,10 @@ export class ConfigManager {
   }
 
   /**
-   * Get default IP storage path based on OS
+   * Determines the appropriate IP storage file path based on the current OS
+   * @returns OS-specific default path for storing the last known IP
    */
   private getDefaultIpStoragePath(): string {
-    // ... existing implementation unchanged ...
     if (process.platform === 'win32') {
       return path.join(
         process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
@@ -220,7 +231,8 @@ export class ConfigManager {
   }
 
   /**
-   * Validate that all required configuration is present and not empty
+   * Validates that all required configuration parameters are present
+   * @throws Error if required configuration is missing
    */
   public validate(): void {
     const missing = this.requiredEnvVars.filter(envVar => {
@@ -250,25 +262,28 @@ export class ConfigManager {
   }
 
   /**
-   * Get a configuration value
+   * Gets a specific configuration value
+   * @param key Configuration key to retrieve
+   * @returns Value for the specified configuration key
    */
   public get<K extends keyof IConfig>(key: K): IConfig[K] {
     return this.config[key];
   }
 
   /**
-   * Get the entire configuration object
+   * Gets a copy of the entire configuration object
+   * @returns Complete configuration object
    */
   public getAll(): IConfig {
     return { ...this.config };
   }
 
   /**
-   * Check if configuration exists and is valid
+   * Checks if all required configuration exists
+   * @returns True if all required config parameters are present and non-empty
    */
   public configExists(): boolean {
     try {
-      // Just check if we have any values for required fields
       return this.requiredEnvVars.every(envVar => {
         const value = this.config[envVar as keyof IConfig];
         return value && (typeof value !== 'string' || value.trim() !== '');

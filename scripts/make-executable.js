@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+
+/**
+ * Script that sets executable permissions for the cloudflare-dyndns application
+ * Also creates configuration directory for global installations
+ *
+ * @module make-executable
+ */
 const utils = require('./utils');
 
 console.log('Setting executable permissions for cloudflare-dyndns...');

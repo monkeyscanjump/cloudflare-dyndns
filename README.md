@@ -199,6 +199,7 @@ PROXIED=false
 ```
 
 The application searches for .env files in these locations (in order):
+
 1. Current working directory
 2. User's home directory (.env)
 3. System-wide location:
@@ -261,6 +262,7 @@ cloudflare-dyndns --continuous
 ```
 
 In continuous mode:
+
 - The application checks more frequently when IP changes are detected
 - It gradually increases the interval as your IP remains stable
 - Maximum interval is 5 minutes by default (configurable)
@@ -330,7 +332,7 @@ crontab -e
 
 ## Command Line Options
 
-```
+```shell
 cloudflare-dyndns [options]
 
 Options:
@@ -383,6 +385,7 @@ cloudflare-dyndns --debug
 ```
 
 This will show:
+
 - API requests and responses
 - IP detection details
 - Configuration processing
@@ -468,7 +471,7 @@ npm run dev
 
 ### Project Structure
 
-```
+```shell
 cloudflare-dyndns/
 ├── src/                # Source code
 │   ├── app/            # Main application classes

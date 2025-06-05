@@ -3,25 +3,29 @@ const path = require('path');
 const os = require('os');
 
 /**
- * Utility functions for install scripts
+ * Utility functions for install and setup scripts
+ * @module scriptUtils
  */
 const scriptUtils = {
   /**
-   * Check if this is a global installation
+   * Determines if the package is being installed globally
+   * @returns {boolean} True if this is a global npm installation
    */
   isGlobalInstall: () => {
     return process.env.npm_config_global === 'true';
   },
 
   /**
-   * Get the global config directory path
+   * Gets the path to the global configuration directory
+   * @returns {string} Path to the user's global config directory
    */
   getGlobalConfigDir: () => {
     return path.join(os.homedir(), '.cloudflare-dyndns');
   },
 
   /**
-   * Create the global config directory if it doesn't exist
+   * Creates the global configuration directory if it doesn't exist
+   * @returns {boolean} True if directory exists or was created successfully
    */
   ensureGlobalConfigDir: () => {
     const configDir = scriptUtils.getGlobalConfigDir();
@@ -40,7 +44,8 @@ const scriptUtils = {
   },
 
   /**
-   * Copy the env.example file to the global config directory
+   * Copies the environment example file to the global configuration directory
+   * @returns {boolean} True if the file was copied successfully
    */
   copyEnvExample: () => {
     const configDir = scriptUtils.getGlobalConfigDir();
@@ -65,7 +70,9 @@ const scriptUtils = {
   },
 
   /**
-   * Make scripts executable on Unix systems
+   * Sets executable permissions on script files for Unix/Linux systems
+   * No effect on Windows
+   * @returns {boolean} True if all files were made executable or on Windows
    */
   makeScriptsExecutable: () => {
     if (os.platform() === 'win32') {
@@ -98,7 +105,8 @@ const scriptUtils = {
   },
 
   /**
-   * Ensure the dist/scripts directory exists
+   * Creates the scripts directory in the dist folder if it doesn't exist
+   * @returns {boolean} True if directory exists or was created successfully
    */
   ensureDistScriptsDir: () => {
     const distScriptsDir = path.join(__dirname, '..', 'dist', 'scripts');

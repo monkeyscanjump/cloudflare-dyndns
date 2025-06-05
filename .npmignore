@@ -1,4 +1,4 @@
-# Source code
+# Source code (TypeScript)
 src/
 
 # Development files
@@ -7,26 +7,65 @@ src/
 .git/
 .github/
 .gitignore
+.npmignore
 .eslintrc.js
 .eslintignore
+tsconfig.json
 jest.config.js
+.prettierrc
+.prettierignore
+.dev-mode
+
+# Scripts (except those needed for install)
+scripts/dev-setup.js
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Build artifacts
+# Build artifacts and test files
 coverage/
 tmp/
 temp/
+test/
+tests/
+__tests__/
+*.spec.ts
+*.test.ts
+test-results/
+junit.xml
 
-# Environment
+# Environment files
 .env
 .env.*
 !.env.example
+*.env.bak
 
-# Other
-node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
+# Docker/deployment files (not needed in npm package)
+Dockerfile
+docker-compose.yml
+.dockerignore
+kubernetes/
+k8s/
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+.github/
+.circleci/
+azure-pipelines.yml
+
+# Documentation sources (keep only README)
+docs/
+documentation/
+examples/
+sample/
+
+# Miscellaneous
+.history/
+.cache/
+*.bak
+*.backup

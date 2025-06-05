@@ -12,6 +12,7 @@ build/
 .env
 .env.*
 !.env.example
+.dev-mode
 
 # Logs
 logs/
@@ -31,6 +32,8 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+test-results/
+junit.xml
 
 # OS files
 .DS_Store
@@ -39,8 +42,19 @@ desktop.ini
 
 # Application-specific files
 last_ip.txt
+data/
 
 # Temporary files
 tmp/
 temp/
 .tmp/
+
+# Docker
+.dockerignore
+*.dockerfile.cache
+
+# Miscellaneous
+.history/
+.cache/
+*.bak
+*.backup
