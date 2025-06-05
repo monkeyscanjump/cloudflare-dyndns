@@ -112,7 +112,7 @@ docker logs -f cloudflare-dyndns
 ### Method 5: Programmatic Usage in Your Node.js Project
 
 ```javascript
-const { runDynDns } = require('cloudflare-dyndns');
+const { runDynDns } = require('@monkeyscanjump/cloudflare-dyndns');
 
 // One-time update with direct configuration
 runDynDns({
