@@ -1,5 +1,6 @@
 # Cloudflare DynDNS
 
+[![CI](https://github.com/monkeyscanjump/cloudflare-dyndns/actions/workflows/ci.yml/badge.svg)](https://github.com/monkeyscanjump/cloudflare-dyndns/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D14.0.0-brightgreen)](package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3%2B-blue)](package.json)
